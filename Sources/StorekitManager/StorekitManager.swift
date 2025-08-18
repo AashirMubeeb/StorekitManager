@@ -11,30 +11,49 @@ private enum PremiumKey: String {
 }
 
 public struct EligibilityStatus {
-    var productID: String
-    var isEligible: Bool
+    public let productID: String
+    public let isEligible: Bool
 }
 
 @MainActor
 public class StorekitManager: ObservableObject {
+    
     public static let shared = StorekitManager()
+    
+    // MARK: - Properties
     public var productsList: [Product] = []
+    public private(set) var eligibilityCache: [EligibilityStatus] = []
     private var productIDs: [String] = []
     private init() {}
     
     // MARK: - Notification Name
     public static let didUpdateProStatusNotification = Notification.Name("didUpdateProStatusNotification")
     
-    // MARK: - Configure with Product IDs
+    // MARK: - Configure
     public func configure(with ids: [String]) {
         self.productIDs = ids
     }
-    // MARK: - Load Products
+    
+    // MARK: - Load Products & Eligibility
     public func requestProducts() async throws -> [Product] {
         assert(!productIDs.isEmpty, "❌ No product IDs configured. Call configure(with:) before requesting products.")
+        
         productsList = try await Product.products(for: productIDs)
+        
+        // Update eligibility cache
+        eligibilityCache = []
+        for product in productsList {
+            let isEligible: Bool = await {
+                guard let subscription = product.subscription,
+                      subscription.introductoryOffer != nil else { return false }
+                return await subscription.isEligibleForIntroOffer
+            }()
+            eligibilityCache.append(EligibilityStatus(productID: product.id, isEligible: isEligible))
+        }
+        
         return productsList
     }
+    
     // MARK: - Purchase
     public func purchase(_ product: Product, completion: @escaping (Bool) -> Void) {
         Task {
@@ -46,7 +65,7 @@ public class StorekitManager: ObservableObject {
                     let transaction = try checkVerified(verification)
                     await transaction.finish()
                     
-                    updateStatus(appUnlocked: true) // 🔑 Save + notify
+                    updateStatus(appUnlocked: true) // Save + notify
                     completion(true)
                     
                 case .userCancelled, .pending:
@@ -69,7 +88,7 @@ public class StorekitManager: ObservableObject {
             for await result in Transaction.currentEntitlements {
                 do {
                     _ = try checkVerified(result)
-                    updateStatus(appUnlocked: true) // 🔑 Save + notify
+                    updateStatus(appUnlocked: true)
                     restored = true
                 } catch {
                     print("⚠️ Verification failed during restore: \(error)")
@@ -98,7 +117,7 @@ extension StorekitManager {
     func updateStatus(appUnlocked: Bool) {
         KeychainHelper.save(appUnlocked, key: PremiumKey.UnlockApp.rawValue)
         
-        // 📢 Notify observers
+        // Notify observers
         NotificationCenter.default.post(
             name: StorekitManager.didUpdateProStatusNotification,
             object: nil,
