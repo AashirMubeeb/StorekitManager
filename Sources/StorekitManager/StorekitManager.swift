@@ -124,5 +124,11 @@ extension StorekitManager {
             userInfo: nil
         )
     }
+    /// Checks if a product is eligible for introductory offers.
+    /// - Parameter productID: The ID of the product to check.
+    /// - Returns: `true` if eligible, otherwise `false`.
+    public func isProductEligible(productID: String) -> Bool {
+        guard !eligibilityCache.isEmpty else { return false }
+        return eligibilityCache.first(where: { $0.productID == productID })?.isEligible ?? false
+    }
 }
-
