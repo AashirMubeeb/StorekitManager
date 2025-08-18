@@ -31,13 +31,10 @@ public class StorekitManager: ObservableObject {
     }
     // MARK: - Load Products
     public func requestProducts() async throws -> [Product] {
-        guard !productIDs.isEmpty else {
-            throw StoreError.noProductIDsConfigured
-        }
+        assert(!productIDs.isEmpty, "❌ No product IDs configured. Call configure(with:) before requesting products.")
         productsList = try await Product.products(for: productIDs)
         return productsList
     }
-    
     // MARK: - Purchase
     public func purchase(_ product: Product, completion: @escaping (Bool) -> Void) {
         Task {
