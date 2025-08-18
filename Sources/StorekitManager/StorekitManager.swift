@@ -18,7 +18,7 @@ public struct EligibilityStatus {
 @MainActor
 public class StorekitManager: ObservableObject {
     public static let shared = StorekitManager()
-    private(set) var productsList: [Product] = []
+    public var productsList: [Product] = []
     private var productIDs: [String] = []
     private init() {}
     
