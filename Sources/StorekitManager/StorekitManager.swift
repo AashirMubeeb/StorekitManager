@@ -24,7 +24,18 @@ public class StorekitManager: ObservableObject {
     public var productsList: [Product] = []
     public private(set) var eligibilityCache: [EligibilityStatus] = []
     private var productIDs: [String] = []
-    private init() {}
+    private init() {
+        //Start a transaction listener as close to app launch as possible so you don't miss any transactions.
+        updateListenerTask = listenForTransactions()
+        
+        Task {
+            //During store initialization, request products from the App Store.
+            
+            
+            //Deliver products that the customer purchases.
+            await updateCustomerProductStatus()
+        }
+    }
     private var updateListenerTask: Task<Void, Error>? = nil
     // MARK: - Notification Name
     public static let didUpdateProStatusNotification = Notification.Name("didUpdateProStatusNotification")
