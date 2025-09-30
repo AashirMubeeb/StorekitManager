@@ -25,7 +25,7 @@ public class StorekitManager: ObservableObject {
     public private(set) var eligibilityCache: [EligibilityStatus] = []
     private var productIDs: [String] = []
     private init() {}
-    
+    private var updateListenerTask: Task<Void, Error>? = nil
     // MARK: - Notification Name
     public static let didUpdateProStatusNotification = Notification.Name("didUpdateProStatusNotification")
     
@@ -33,7 +33,66 @@ public class StorekitManager: ObservableObject {
     public func configure(with ids: [String]) {
         self.productIDs = ids
     }
-    
+    deinit {
+        updateListenerTask?.cancel()
+    }
+    func listenForTransactions() -> Task<Void, Error> {
+        return Task.detached {
+            //Iterate through any transactions that don't come from a direct call to `purchase()`.
+            for await result in Transaction.updates {
+                do {
+                    let transaction = try await self.checkVerified(result)
+                    
+                    //Deliver products to the user.
+                    await self.updateCustomerProductStatus()
+                    
+                    //Always finish a transaction.
+                    await transaction.finish()
+                } catch {
+                    //StoreKit has a transaction that fails verification. Don't deliver content to the user.
+                    print("Transaction failed verification")
+                }
+            }
+        }
+    }
+    func updateCustomerProductStatus() async {
+        var lifeTimePurchase: [String] = []
+        var purchasedSubscriptions: [String] = []
+        
+        //Iterate through all of the user's purchased products.
+        for await result in Transaction.currentEntitlements {
+            do {
+                //Check whether the transaction is verified. If it isn’t, catch `failedVerification` error.
+                let transaction = try checkVerified(result)
+                //Check the `productType` of the transaction and get the corresponding product from the store.
+                switch transaction.productType {
+                case .nonConsumable:
+                    if let car = productIDs.first(where: { $0 == transaction.productID }) {
+                        lifeTimePurchase.append(car)
+                    }
+                case .nonRenewable:
+                    break
+                case .autoRenewable:
+                    if let subscription = productIDs.first(where: { $0 == transaction.productID }) {
+                        purchasedSubscriptions.append(subscription)
+                    }
+                default:
+                    break
+                }
+            } catch {
+                print()
+            }
+        }
+        if purchasedSubscriptions.isEmpty{
+            updateStatus(appUnlocked: false) // Save + notify
+        }else if !purchasedSubscriptions.isEmpty{
+            updateStatus(appUnlocked: true) // Save + notify
+        }else if !lifeTimePurchase.isEmpty{
+            updateStatus(appUnlocked: true) // Save + notify
+        }else{
+            updateStatus(appUnlocked: false)
+        }
+    }
     // MARK: - Load Products & Eligibility
     public func requestProducts() async throws -> [Product] {
         assert(!productIDs.isEmpty, "❌ No product IDs configured. Call configure(with:) before requesting products.")
@@ -99,13 +158,19 @@ public class StorekitManager: ObservableObject {
     }
     
     // MARK: - Helpers
-    private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
+    func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
+        //Check whether the JWS passes StoreKit verification.
         switch result {
         case .unverified:
+            //StoreKit parses the JWS, but it fails verification.
             throw StoreError.failedVerification
         case .verified(let safe):
+            //The result is verified. Return the unwrapped value.
             return safe
         }
+    }
+    public func sortByPrice(_ products: [Product]) -> [Product] {
+        products.sorted(by: { return $0.price < $1.price })
     }
 }
 
