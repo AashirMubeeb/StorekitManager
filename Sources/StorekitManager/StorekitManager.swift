@@ -105,6 +105,7 @@ public class StorekitManager: ObservableObject {
         }
     }
     // MARK: - Load Products & Eligibility
+    @discardableResult
     public func requestProducts() async throws -> [Product] {
         assert(!productIDs.isEmpty, "❌ No product IDs configured. Call configure(with:) before requesting products.")
         
