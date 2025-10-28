@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "StorekitManager",
     platforms: [
-        .iOS(.v16),    // Minimum iOS version
+        .iOS(.v15),    // Minimum iOS version
         .macOS(.v12)   // Minimum macOS version
     ],
     products: [

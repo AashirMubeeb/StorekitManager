@@ -125,7 +125,7 @@ public class StorekitManager: ObservableObject {
     }
     
     // MARK: - Purchase
-    public func purchase(_ product: Product, completion: @escaping (Bool) -> Void) {
+    public func purchase(_ product: Product) {
         Task {
             do {
                 let result = try await product.purchase()
@@ -136,17 +136,16 @@ public class StorekitManager: ObservableObject {
                     await transaction.finish()
                     
                     updateStatus(appUnlocked: true) // Save + notify
-                    completion(true)
                     
                 case .userCancelled, .pending:
-                    completion(false)
+                    updateStatus(appUnlocked: false)
                     
                 default:
-                    completion(false)
+                    updateStatus(appUnlocked: false)
                 }
             } catch {
                 print("❌ Purchase failed: \(error)")
-                completion(false)
+                updateStatus(appUnlocked: false)
             }
         }
     }
