@@ -152,19 +152,17 @@ public class StorekitManager: ObservableObject {
     }
     
     // MARK: - Restore Purchases
-    public func restorePurchases(completion: @escaping (Bool) -> Void) {
+    public func restorePurchases() {
         Task {
-            var restored = false
             for await result in Transaction.currentEntitlements {
                 do {
                     _ = try checkVerified(result)
                     updateStatus(appUnlocked: true)
-                    restored = true
                 } catch {
                     print("⚠️ Verification failed during restore: \(error)")
+                    updateStatus(appUnlocked: false)
                 }
             }
-            completion(restored)
         }
     }
     
