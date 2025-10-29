@@ -154,18 +154,28 @@ public class StorekitManager: ObservableObject {
     // MARK: - Restore Purchases
     public func restorePurchases() {
         Task {
-            for await result in Transaction.currentEntitlements {
-                do {
-                    _ = try checkVerified(result)
-                    updateStatus(appUnlocked: true)
-                } catch {
-                    print("⚠️ Verification failed during restore: \(error)")
-                    updateStatus(appUnlocked: false)
-                }
+            try await AppStore.sync()
+            
+            // Check current entitlements after sync
+            await checkCurrentEntitlements()
+            
+        }
+    }
+    private func checkCurrentEntitlements() async {
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let transaction) = result {
+                await updatePurchasedProducts(transaction)
             }
         }
     }
-    
+    private func updatePurchasedProducts(_ transaction: Transaction) async {
+        if transaction.revocationDate == nil {
+            // Product is purchased and not revoked
+            updateStatus(appUnlocked: true)
+        } else {
+            updateStatus(appUnlocked: false)
+        }
+    }
     // MARK: - Helpers
     func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         //Check whether the JWS passes StoreKit verification.
