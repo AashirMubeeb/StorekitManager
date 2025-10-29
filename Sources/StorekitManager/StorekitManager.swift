@@ -150,30 +150,85 @@ public class StorekitManager: ObservableObject {
             }
         }
     }
-    
-    // MARK: - Restore Purchases
-    public func restorePurchases() {
-        Task {
+    func restorePurchases() async -> (success: Bool, message: String, restoredProductIDs: [String]) {
+        let restoredProductIDs: [String] = []
+        
+        do {
+            // Step 1: Sync with App Store to get latest transaction history
             try await AppStore.sync()
+            print("App Store sync completed")
             
-            // Check current entitlements after sync
-            await checkCurrentEntitlements()
-            
+            // Step 2: Check current entitlements (active purchases)
+            for await verificationResult in Transaction.currentEntitlements {
+                switch verificationResult {
+                case .verified(let transaction):
+                    // Check if purchase is still valid
+                    if await isTransactionValid(transaction) {
+                        updateStatus(appUnlocked: true)
+                    } else {
+                        updateStatus(appUnlocked: false)
+                    }
+                    // Always finish the transaction
+                    await transaction.finish()
+                    
+                case .unverified(let transaction, let error):
+                    print("Unverified transaction: \(transaction.productID), error: \(error)")
+                    // Don't restore unverified transactions
+                }
+            }
+            print(restoredProductIDs)
+            // Step 3: Return appropriate message
+            if !restoredProductIDs.isEmpty {
+                return (true, "Successfully restored \(restoredProductIDs.count) purchase(s)", restoredProductIDs)
+            } else {
+                return (true, "No previous purchases found", [])
+            }
+        } catch {
+            print("Restore purchases failed: \(error)")
+            return (false, "Failed to restore purchases: \(error.localizedDescription)", [])
         }
     }
-    private func checkCurrentEntitlements() async {
-        for await result in Transaction.currentEntitlements {
-            if case .verified(let transaction) = result {
-                await updatePurchasedProducts(transaction)
+    // Helper function to validate transaction status
+    private func isTransactionValid(_ transaction: Transaction) async -> Bool {
+        // Check if purchase was revoked
+        if transaction.revocationDate != nil {
+            return false
+        }
+        
+        // Check if subscription is expired (if applicable)
+        if let expirationDate = transaction.expirationDate {
+            if expirationDate < Date() {
+                return false
             }
         }
+        
+        // Check if purchase is still within its validity period
+        if let revocationDate = transaction.revocationDate {
+            if revocationDate < Date() {
+                return false
+            }
+        }
+        
+        // Additional check for subscription status
+        if transaction.productType == .autoRenewable {
+            return await checkSubscriptionStatus(transaction)
+        }
+        // For non-consumables and valid subscriptions
+        return true
     }
-    private func updatePurchasedProducts(_ transaction: Transaction) async {
-        if transaction.revocationDate == nil {
-            // Product is purchased and not revoked
-            updateStatus(appUnlocked: true)
-        } else {
-            updateStatus(appUnlocked: false)
+    // Additional subscription status check
+    private func checkSubscriptionStatus(_ transaction: Transaction) async -> Bool {
+        // Get latest subscription status
+        let statuses = await transaction.subscriptionStatus
+        guard let status = statuses else { return false }
+        
+        switch status.state {
+        case .subscribed, .inGracePeriod, .inBillingRetryPeriod:
+            return true
+        case .expired, .revoked:
+            return false
+        default:
+            return false
         }
     }
     // MARK: - Helpers
