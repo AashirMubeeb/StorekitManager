@@ -173,17 +173,20 @@ public class StorekitManager: ObservableObject {
                     
                 case .unverified(let transaction, let error):
                     print("Unverified transaction: \(transaction.productID), error: \(error)")
-                    // Don't restore unverified transactions
+                    updateStatus(appUnlocked: false)
                 }
             }
             print(restoredProductIDs)
             // Step 3: Return appropriate message
             if !restoredProductIDs.isEmpty {
+                updateStatus(appUnlocked: false)
                 return (true, "Successfully restored \(restoredProductIDs.count) purchase(s)", restoredProductIDs)
             } else {
+                updateStatus(appUnlocked: false)
                 return (true, "No previous purchases found", [])
             }
         } catch {
+            updateStatus(appUnlocked: false)
             print("Restore purchases failed: \(error)")
             return (false, "Failed to restore purchases: \(error.localizedDescription)", [])
         }
