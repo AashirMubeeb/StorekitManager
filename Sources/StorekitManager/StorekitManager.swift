@@ -150,7 +150,7 @@ public class StorekitManager: ObservableObject {
             }
         }
     }
-    func restorePurchases() async -> (success: Bool, message: String, restoredProductIDs: [String]) {
+    public func restorePurchases() async -> (success: Bool, message: String, restoredProductIDs: [String]) {
         let restoredProductIDs: [String] = []
         
         do {
