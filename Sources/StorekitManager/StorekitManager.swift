@@ -94,14 +94,15 @@ public class StorekitManager: ObservableObject {
                 print()
             }
         }
+        updateStatus(appUnlocked: false)
         if purchasedSubscriptions.isEmpty{
             updateStatus(appUnlocked: false) // Save + notify
-        }else if !purchasedSubscriptions.isEmpty{
+        }
+        if !purchasedSubscriptions.isEmpty{
             updateStatus(appUnlocked: true) // Save + notify
-        }else if !lifeTimePurchase.isEmpty{
+        }
+        if !lifeTimePurchase.isEmpty{
             updateStatus(appUnlocked: true) // Save + notify
-        }else{
-            updateStatus(appUnlocked: false)
         }
     }
     // MARK: - Load Products & Eligibility
