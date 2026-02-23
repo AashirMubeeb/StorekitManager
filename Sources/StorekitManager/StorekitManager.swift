@@ -1,7 +1,7 @@
+
 import Foundation
 import StoreKit
 import Combine
-
 enum StoreError: Error {
     case failedVerification
     case noProductIDsConfigured
@@ -292,4 +292,3 @@ extension StorekitManager {
         return eligibilityCache.first(where: { $0.productID == productID })?.isEligible ?? false
     }
 }
-
