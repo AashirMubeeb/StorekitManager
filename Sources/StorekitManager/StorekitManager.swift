@@ -66,45 +66,85 @@ public class StorekitManager: ObservableObject {
             }
         }
     }
+    //    func updateCustomerProductStatus() async {
+    //        var lifeTimePurchase: [String] = []
+    //        var purchasedSubscriptions: [String] = []
+    //
+    //        //Iterate through all of the user's purchased products.
+    //        for await result in Transaction.currentEntitlements {
+    //            do {
+    //                //Check whether the transaction is verified. If it isn’t, catch `failedVerification` error.
+    //                let transaction = try checkVerified(result)
+    //                //Check the `productType` of the transaction and get the corresponding product from the store.
+    //                switch transaction.productType {
+    //                case .nonConsumable:
+    //                    if let car = productIDs.first(where: { $0 == transaction.productID }) {
+    //                        lifeTimePurchase.append(car)
+    //                    }
+    //                case .nonRenewable:
+    //                    break
+    //                case .autoRenewable:
+    //                    if let subscription = productIDs.first(where: { $0 == transaction.productID }) {
+    //                        purchasedSubscriptions.append(subscription)
+    //                    }
+    //                default:
+    //                    break
+    //                }
+    //            } catch {
+    //                print()
+    //            }
+    //        }
+    //        updateStatus(appUnlocked: false)
+    //        if purchasedSubscriptions.isEmpty{
+    //            updateStatus(appUnlocked: false) // Save + notify
+    //        }
+    //        if !purchasedSubscriptions.isEmpty{
+    //            updateStatus(appUnlocked: true) // Save + notify
+    //        }
+    //        if !lifeTimePurchase.isEmpty{
+    //            updateStatus(appUnlocked: true) // Save + notify
+    //        }
+    //    }
+    
     func updateCustomerProductStatus() async {
-        var lifeTimePurchase: [String] = []
-        var purchasedSubscriptions: [String] = []
+        var isUnlocked = false
         
-        //Iterate through all of the user's purchased products.
         for await result in Transaction.currentEntitlements {
             do {
-                //Check whether the transaction is verified. If it isn’t, catch `failedVerification` error.
                 let transaction = try checkVerified(result)
-                //Check the `productType` of the transaction and get the corresponding product from the store.
+                
+                guard productIDs.contains(transaction.productID) else {
+                    continue
+                }
+                
                 switch transaction.productType {
                 case .nonConsumable:
-                    if let car = productIDs.first(where: { $0 == transaction.productID }) {
-                        lifeTimePurchase.append(car)
-                    }
-                case .nonRenewable:
-                    break
+                    isUnlocked = true
+                    
                 case .autoRenewable:
-                    if let subscription = productIDs.first(where: { $0 == transaction.productID }) {
-                        purchasedSubscriptions.append(subscription)
+                    if await isTransactionValid(transaction) {
+                        isUnlocked = true
                     }
+                    
                 default:
                     break
                 }
+                
+                if isUnlocked {
+                    break
+                }
+                
             } catch {
-                print()
+                print("Transaction verification failed: \(error)")
             }
         }
-        updateStatus(appUnlocked: false)
-        if purchasedSubscriptions.isEmpty{
-            updateStatus(appUnlocked: false) // Save + notify
-        }
-        if !purchasedSubscriptions.isEmpty{
-            updateStatus(appUnlocked: true) // Save + notify
-        }
-        if !lifeTimePurchase.isEmpty{
-            updateStatus(appUnlocked: true) // Save + notify
+        
+        await MainActor.run {
+            updateStatus(appUnlocked: isUnlocked)
         }
     }
+    
+    
     // MARK: - Load Products & Eligibility
     @discardableResult
     public func requestProducts() async throws -> [Product] {
